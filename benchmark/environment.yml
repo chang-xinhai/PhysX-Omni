@@ -1,0 +1,32 @@
+name: physx-omni-benchmark
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pillow
+  - imageio
+  - imageio-ffmpeg
+  - pyyaml
+  - tqdm
+  - scipy
+  - scikit-image
+  - trimesh
+  - open3d
+  - pytorch
+  - pytorch-cuda=12.1
+  - pip:
+      - transformers>=4.51
+      - accelerate
+      - safetensors
+      - mujoco>=3.2
+      - fast-simplification
+      - pymeshfix
+      - tetgen
+      # Required only for MPS material simulations.
+      # If installing Genesis from source, remove this line and install the
+      # matching local Genesis checkout instead.
+      - genesis-world

@@ -1,0 +1,42 @@
+turns:
+  - id: dimension_prior
+    image_from_input: true
+    text: |
+      [Prompt: Object dimension estimation based only on the image]
+
+      You are estimating the real-world dimensions of the main object based on a single RGB image.
+
+      An image will be provided in the input.
+      Your task is to analyze only this input image and output a strict JSON object.
+
+      Important constraints:
+      - Use centimeters as the unified unit.
+      - Output exactly 3 dimension values, sorted from largest to smallest.
+      - Estimate the object's real-world absolute dimensions as much as possible.
+      - If the image lacks a clear scale reference, give the best estimate based on object category priors, common everyday dimensions, and visual cues in the image.
+      - Do not output markdown.
+      - Do not output any extra text before or after the JSON.
+      - Output strict JSON only.
+
+      Dimension estimation rules:
+      - estimated_dimensions_cm_sorted must be [d1, d2, d3].
+      - It must satisfy d1 >= d2 >= d3 > 0.
+      - max_dimension_cm must equal d1.
+      - size_confidence must be one of: "high", "medium", "low".
+
+      Requirements for the reason field:
+      - Keep it brief.
+      - Briefly describe the basis for your dimension estimate.
+
+      Output only JSON, and strictly conform to the following schema:
+
+      {
+        "task": "dimension_prior",
+        "object_summary": "...",
+        "estimated_dimensions_cm_sorted": [200, 100, 15],
+        "max_dimension_cm": 200,
+        "size_confidence": "medium",
+        "reason": "..."
+      }
+
+      Now analyze the input image and output JSON only.

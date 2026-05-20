@@ -1,0 +1,89 @@
+# Multi-GPU batch config for floor material videos.
+# Run one method/dataset pair:
+#   python multi_gpu_batch.py --config config.toml --method ours --dataset inthewild --gpus 0,1
+# Dry run:
+#   python multi_gpu_batch.py --config config.toml --method ours --dataset inthewild --dry-run
+
+[defaults]
+output_root = "benchmark/benchmark_assets/material_videos_v2/floor"
+script_path = "benchmark/code/render/material_batch/floor/pillow_mixed_fem_rigid_test.py"
+python_bin = "python3"
+
+[sim]
+# Passed to pillow_mixed_fem_rigid_test.py.
+steps = 1600
+# Optional user-facing video length control. If set, batch derives:
+# steps = warmup_steps + ceil(duration_sec * fps) * render_every
+# and that derived value overrides `steps`.
+# duration_sec = 4.0
+fps = 30
+render_every = 12
+warmup_steps = 150
+scale = 1.0
+e_threshold = 1.0
+glb_rot_x = 90.0
+obj_rot_x = 0.0
+drop_height = 0.50
+extra_rigid_rho = 2000.0
+record = true
+cam_dist_scale = 1.8
+cam_min_dist = 1.5
+cam_fov = 45.0
+cam_ground_z = 0.0
+cam_ground_margin = 0.15
+cam_lookat_z_bias = -0.20
+# cpu = true
+# vis = true
+# extra_rigid = "physx_result/optional_extra_rigid.obj"
+tmp_mesh_dir = "benchmark/benchmark_assets/material_videos/floor/_tmp_meshes_fem"
+
+[gpus]
+devices = [0,1,2,3,4,5,6,7]
+
+[env]
+# Force pyglet away from X11 on headless workers. This avoids XRender lookup
+# failures once the OpenGL/EGL runtime libraries are installed.
+PYGLET_HEADLESS = "true"
+PYOPENGL_PLATFORM = "egl"
+
+[[roots]]
+name = "ours_inthewild_181500"
+method = "ours"
+dataset = "inthewild"
+watertight = "physx_result/watertightFix_max3000/ours_inthewild_181500"
+metric_json = "physx_result/material_metric_json/origin/ours_inthewild_181500"
+
+[[roots]]
+name = "ours_mobility_181500"
+method = "ours"
+dataset = "mobility"
+watertight = "physx_result/watertightFix_max3000/ours_mobility_181500"
+metric_json = "physx_result/material_metric_json/origin/ours_mobility_181500"
+
+[[roots]]
+name = "ours_verse_181500"
+method = "ours"
+dataset = "verse"
+watertight = "physx_result/watertightFix_max3000/ours_verse_181500"
+metric_json = "physx_result/material_metric_json/origin/ours_verse_181500"
+
+[[roots]]
+name = "output_physxanything_inthewild"
+method = "physxanything"
+dataset = "inthewild"
+watertight = "physx_result/watertightFix_max3000/output_physxanything_inthewild"
+metric_json = "physx_result/material_metric_json/origin/output_physxanything_inthewild"
+
+[[roots]]
+name = "output_physxanything_mobility"
+method = "physxanything"
+dataset = "mobility"
+watertight = "physx_result/watertightFix_max3000/output_physxanything_mobility"
+metric_json = "physx_result/material_metric_json/origin/output_physxanything_mobility"
+
+[[roots]]
+name = "output_physxanything_verse"
+method = "physxanything"
+dataset = "verse"
+watertight = "physx_result/watertightFix_max3000/output_physxanything_verse"
+metric_json = "physx_result/material_metric_json/origin/output_physxanything_verse"

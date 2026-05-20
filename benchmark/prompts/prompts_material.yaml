@@ -1,0 +1,161 @@
+turns:
+  - id: material_scoring
+    image_from_input: true
+    videos_from_input: true
+    text: |
+      [Single-turn material plausibility evaluation]
+
+      You are a visual evaluator with knowledge of material physics, common object materials, and video-based physical reasoning.
+
+      You will be given the following inputs:
+      1. The condition image of the object.
+      2. Two simulation videos of the generated 3D object:
+         - Video A: free fall followed by collision with the ground.
+         - Video B: falling into water and interacting with water.
+         The videos are provided in this exact order: first Video A (ground impact), then Video B (water entry).
+      3. Material parameters assigned by the model to the generated 3D object as a whole or to its parts, including Young's modulus, Poisson's ratio, and density.
+
+      Material parameters provided by the model:
+      {material_parameters}
+
+      Your task:
+      Based on the condition image, common material knowledge, the generated physical parameters, and the physical behavior observed in the two generated simulation videos, evaluate whether the generated 3D object's material behavior is plausible.
+
+      First, internally infer image-based material priors from the condition image:
+      - likely object category;
+      - likely material categories of the whole object and major visible parts;
+      - whether each major part appears rigid, soft, elastic, brittle, hollow, porous, metallic, wooden, plastic-like, rubber-like, glass-like, stone-like, ceramic-like, foam-like, fabric-like, or composite;
+      - expected deformation under ground impact;
+      - expected recovery or rebound behavior after impact;
+      - expected buoyancy in water;
+      - qualitative plausible ranges of Young's modulus, Poisson's ratio, and density.
+
+      Use those image-based priors to score the generated object's material behavior. Give more weight to priors that are visually clear and high confidence. If a material property cannot be reliably inferred from the image, state the uncertainty and avoid over-penalization.
+
+      Critical interpretation:
+      - The provided physical parameters are not ground-truth labels. They are generated model outputs and are part of the object being evaluated.
+      - The two simulation videos are also generated evidence: the generated 3D object in the videos was simulated using these generated physical parameters.
+      - Do not treat the provided physical parameters as authoritative truth.
+      - Your primary judgment should be whether the generated object's behavior in the videos is consistent with the condition image, image-based material priors, and common material knowledge.
+      - Use the provided physical parameters only as supporting context for understanding why the generated video behavior may be stiff, soft, buoyant, heavy, rubber-like, etc.
+      - You are not assigning a separate score to the raw parameter text. Instead, score the plausibility of the generated material behavior observed in the videos, while checking whether that behavior and the provided parameters jointly make sense relative to the image prior.
+
+      Important understanding:
+      - The evaluation is about the overall material plausibility of the generated 3D object, not about a single isolated part.
+      - If the object contains multiple major parts that appear to have different materials, consider the behavior of those major parts separately before assigning the overall score.
+      - Because textures, colors, and shapes in the simulation videos may be degraded by rendering parameters, simulation settings, or geometry processing, do not directly judge material correctness based on video color, texture, or minor shape differences.
+      - When comparing the condition image with the simulation videos, match corresponding parts as well as possible using approximate shape, spatial location, structural relations, relative size, and overall semantics.
+      - If a part in the video does not exactly match the condition image in color or texture, but approximately corresponds in shape, location, and structure, still treat it as the same part for judging material behavior.
+      - Exact numerical correctness is not required. Judge whether the generated material behavior in the videos is plausible at a coarse but meaningful level, and whether the generated physical parameters are broadly compatible with that behavior.
+
+      Additional scene and matching notes:
+      - In the water-entry video, water is represented as blue particles and forms a water cube located near the center of the frame, enclosed by invisible walls. Do not mistake the blue water particles for parts of the object. The object initially appears above the water cube and then falls into it. Because of the camera view and rendering distance, both the object and the water cube may occupy only a limited portion of the frame, and the object is usually smaller than the water cube.
+      - The generated object may be rigid, articulated, or deformable. If the generated object has multiple parts, preprocessing may separate it into multiple disconnected parts, and these parts may be released together above the ground or above the water. Do not interpret this separation as damage, breakup, or disassembly caused by the fall or the impact. Instead, focus on whether the behavior of each part is consistent with the material prior.
+      - The textures and colors of object parts in the simulation videos may differ from those in the condition image. When matching parts between the condition image and the videos, rely primarily on approximate geometric shape, structural role, spatial position, relative size, and overall semantic correspondence, rather than exact texture or color consistency.
+      
+      Parameter interpretation:
+      - Young's modulus describes stiffness. Higher values usually imply smaller deformation under impact or compression.
+      - Poisson's ratio describes lateral expansion relative to axial compression. For most ordinary solid materials, it is typically between 0 and 0.5. Values near 0.5 indicate nearly incompressible rubber-like behavior.
+      - Density affects mass, inertia, buoyancy, floating, sinking, and underwater motion. Density relative to water is especially important in the water-entry video.
+
+      Video usage:
+      - Use Video A mainly to judge Young's modulus, including impact deformation, stiffness, bending, rebound, recovery, and collision response.
+      - Use Video B mainly to judge density, including floating, sinking, suspension, sinking speed, underwater inertia, and buoyancy behavior.
+      - Both videos may also provide supporting evidence for overall material plausibility.
+      - Poisson's ratio may be difficult to judge reliably from only these two videos. Evaluate Poisson's ratio only when visible deformation provides evidence; otherwise use low confidence.
+
+      Important evaluation rules:
+      - Evaluate only Young's modulus, Poisson's ratio, density, and the overall plausibility of these material parameters through generated video behavior.
+      - Do not evaluate texture, color, shape quality, visual aesthetics, reconstruction quality, multi-view consistency, or articulation quality.
+      - Ignore irrelevant simulator or FEM artifacts, such as mesh explosion, penetration, abnormal friction, rendering artifacts, texture artifacts, or unrelated scene issues, unless they directly prevent judging material behavior.
+      - Do not penalize the material parameters for unrelated simulation artifacts. If the video evidence is unreliable, lower the confidence instead.
+      - If video behavior contradicts the generated parameter values or high-confidence image-based material priors, lower the corresponding score.
+      - Do not use external tools or external material tables.
+
+      Young's modulus scoring criteria:
+      Young's modulus should mainly be judged from deformation magnitude, stiffness, bending, rebound, and recovery under ground impact or compression.
+
+      1 = Very implausible. The object's overall behavior or the behavior of multiple major parts under impact or compression strongly contradicts high-confidence image priors, common material knowledge, or observed behavior.
+      2 = Implausible. Multiple major parts show deformation, stiffness, rebound, or recovery behavior under impact or compression that is clearly inconsistent with image-based priors, or the overall stiffness behavior is clearly mismatched with the given Young's modulus.
+      3 = Uncertain or moderately plausible. Some parts show unreasonable stiffness or deformation behavior, but more than half of the major part behaviors are reasonable or basically correct; alternatively, the video evidence is weak and the judgment is unstable.
+      4 = Plausible. Most major parts show deformation, stiffness, rebound, and recovery behavior that is broadly consistent with the image priors and the given Young's modulus, with only a few unreasonable parts or minor uncertainty.
+      5 = Highly plausible. The overall object and its major parts show stiffness, deformation, rebound, and recovery behavior that is basically consistent with high-confidence image priors, common material knowledge, and the given Young's modulus.
+
+      Poisson's ratio scoring criteria:
+      Poisson's ratio should mainly be judged from whether compression or impact produces reasonable lateral expansion, volume-preservation tendency, and coupling between compression direction and lateral deformation.
+
+      1 = Very implausible. The object's overall behavior or the behavior of multiple major parts under compression or impact shows lateral expansion, volume preservation, or deformation coupling that strongly contradicts high-confidence image priors, or the given Poisson's ratio is clearly outside the physically plausible range for ordinary materials.
+      2 = Implausible. Multiple major parts show lateral expansion, volume preservation, or compression-to-lateral deformation ratios that are clearly inconsistent with image-based priors, or the overall lateral deformation behavior is clearly mismatched with the given Poisson's ratio.
+      3 = Uncertain or moderately plausible. Some parts show unreasonable lateral deformation or volume-preservation trends, but more than half of the major part behaviors are reasonable or basically correct; alternatively, the videos lack clear compression evidence, making Poisson's ratio difficult to judge reliably.
+      4 = Plausible. Most major parts show lateral expansion, volume-preservation tendency, and deformation coupling that are broadly consistent with the image priors and the given Poisson's ratio, with only a few unreasonable or uncertain regions.
+      5 = Highly plausible. The overall object and its major parts show lateral deformation, volume-preservation tendency, and compression-to-lateral deformation relationships that are basically consistent with high-confidence image priors, common material knowledge, and the given Poisson's ratio.
+
+      Density scoring criteria:
+      Density should mainly be judged from buoyancy, floating, suspension, sinking speed, underwater motion, underwater inertia, and the sense of mass during free fall and collision.
+
+      1 = Very implausible. The object's overall behavior or the behavior of multiple major parts in water, including buoyancy, floating, sinking, underwater motion, or inertia, strongly contradicts high-confidence image priors, common material knowledge, or observed behavior.
+      2 = Implausible. Multiple major parts show floating/sinking state, sinking speed, underwater inertia, or sense of mass that is clearly inconsistent with image-based priors, or the overall density behavior is clearly mismatched with the given density.
+      3 = Uncertain or moderately plausible. Some parts show unreasonable floating/sinking or inertia behavior, but more than half of the major part behaviors are reasonable or basically correct; alternatively, the water video evidence is weak and the judgment is unstable.
+      4 = Plausible. Most major parts show buoyancy, floating, sinking, underwater motion, and inertia behavior that are broadly consistent with the image priors and the given density, with only a few unreasonable parts or minor uncertainty.
+      5 = Highly plausible. The overall object and its major parts show floating/sinking, underwater motion, inertia, and sense of mass that are basically consistent with high-confidence image priors, common material knowledge, and the given density.
+
+      Overall MPS:
+      After assigning the three parameter scores, compute the overall material plausibility score using the following deterministic formula.
+
+      Let:
+      - S_E be the Young's modulus score;
+      - S_nu be the Poisson's ratio score;
+      - S_rho be the density score.
+
+      First compute the weighted 1-5 material score:
+
+      weighted_score = 0.4 * S_E + 0.2 * S_nu + 0.4 * S_rho
+
+      Then convert it to a 0-100 Material Plausibility Score:
+
+      MPS = 25 * (weighted_score - 1)
+
+      The weights are:
+      - Young's modulus: 40%
+      - Density: 40%
+      - Poisson's ratio: 20%
+
+      The MPS must be consistent with the three parameter scores and the formula above.
+      Do not choose the MPS freely.
+      Do not change the weights.
+
+      The output must be strict JSON.
+      Do not output markdown.
+      Do not output any extra text before or after the JSON.
+
+      Use the following output schema:
+
+      {
+        "task": "material_scoring",
+        "used_high_confidence_priors": ["<which high-confidence object-level or part-level priors were used>"],
+        "given_material_parameters_summary": "<brief summary of the given material parameters for the object or its parts>",
+        "part_matching_between_image_and_video": "<briefly describe how the visible parts in the condition image were approximately matched to the parts in the videos despite possible rendering or geometry degradation>",
+        "youngs_modulus_evaluation": {
+          "score": <one integer from 1, 2, 3, 4, 5>,
+          "confidence": "<high / medium / low>",
+          "reason": "<brief explanation based on overall and part-level stiffness, deformation, rebound, and recovery>"
+        },
+        "poisson_ratio_evaluation": {
+          "score": <one integer from 1, 2, 3, 4, 5>,
+          "confidence": "<high / medium / low>",
+          "reason": "<brief explanation based on lateral expansion, volume preservation, deformation coupling, or uncertainty>"
+        },
+        "density_evaluation": {
+          "score": <one integer from 1, 2, 3, 4, 5>,
+          "confidence": "<high / medium / low>",
+          "reason": "<brief explanation based on buoyancy, floating, sinking, underwater motion, and inertia>"
+        },
+        "material_weighted_score": <number from 1 to 5 computed as 0.4 * youngs_modulus_score + 0.2 * poisson_ratio_score + 0.4 * density_score>,
+        "MPS": <number from 0 to 100 computed as 25 * (material_weighted_score - 1)>,
+        "overall_confidence": "<high / medium / low>",
+        "overall_reason": "<one-sentence summary of whether the object-level material parameters and material behavior are jointly plausible>",
+        "video_artifact_notes": "<simulation or rendering artifacts that affected the judgment; use none if there are none>",
+        "uncertainty": "<aspects that cannot be reliably determined from the image, material prior, or videos; use none if there are none>"
+      }
+
+      Now read the condition image, the two generated simulation videos, and the generated physical parameters. Internally infer the material prior from the condition image, evaluate whether the generated object's video behavior is materially plausible relative to that image prior, and output JSON only.

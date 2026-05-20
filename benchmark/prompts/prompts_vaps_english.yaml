@@ -1,0 +1,339 @@
+turns:
+  - id: prompt_a_image_prior
+    image_from_input: true
+    text: |
+      [Prompt A: Image-only main-object structural prior extraction]
+
+      You are evaluating the articulation prior of a main object based on a single RGB image.
+
+      Your task is to analyze only the input image and output a strict JSON object.
+      Do not evaluate any generated 3D result.
+      Do not mention any score.
+      Do not output markdown.
+      Do not output any extra text before or after the JSON.
+
+      Definition of "main object":
+      The main object is the primary target object in the image and is also the core object corresponding to the subsequent 3D generation and video evaluation.
+
+      Definition of "part":
+      A part is a structural component of the main object itself. It may appear to move as a rigid body relative to adjacent structures, or it may remain fixed.
+
+      However, the following should also be considered parts:
+      - independent contents inside, on the surface of, or contained by the main object
+      - objects that can be stored, loaded, or contained
+      - other independent, freely movable objects separated from the main object
+
+      Goal:
+      List the main structural parts of the main object that are relevant to articulation plausibility.
+
+      Rules:
+      1. You may only use the following enum values, and they must be spelled exactly as follows:
+         visibility: "clear" | "partial" | "occluded_possible"
+         prior_class: "movable" | "immovable" | "uncertain"
+         likely_motion: "fixed" | "prismatic" | "revolute" | "free" | "unknown"
+
+      2. Meaning of each enum value:
+         - "movable": The image provides strong evidence that this structural part should normally be movable.
+         - "immovable": The image provides strong evidence that this structural part should remain fixed relative to adjacent structures.
+         - "uncertain": The image does not provide sufficiently strong evidence to confidently determine whether this structural part should be movable or immovable.
+
+      3. Rules for likely_motion:
+         - If prior_class is "immovable", then likely_motion must be "fixed".
+         - If prior_class is "movable", then likely_motion should be one of "prismatic", "revolute", "free", or "unknown".
+         - If prior_class is "uncertain", then likely_motion may be any allowed value.
+         - Use "free" only when the image strongly indicates that the part can move completely unconstrained relative to all other parts. This should be rare.
+         - If the part may be movable but its specific motion type cannot be reliably inferred from the image, use "unknown".
+
+      4. Handling occluded parts:
+         - Based on common sense and object-category information, if the image implies that a structural part exists, or if such a part should logically exist, output it with visibility = "occluded_possible".
+         - Do not fabricate purely speculative hidden structural parts.
+
+      5. Ordering rules:
+         - Output parts in a stable spatial order: top to bottom, and within the same horizontal band, left to right.
+         - part_id must start from 1 and increase by 1 each time, with no skipped numbers.
+
+      6. evidence field:
+         - Keep it brief.
+         - At most 20 English words or at most 20 Chinese characters.
+         - Only briefly describe the visual evidence.
+
+      7. object_summary:
+         - Use one short sentence to describe the object category and the overall articulation impression based only on the image.
+
+      8. Output JSON only, and strictly follow the schema below:
+
+      {
+      "task": "image_prior",
+      "object_summary": "...",
+      "parts": [
+         {
+            "part_id": 1,
+            "part_name": "...",
+            "visibility": "clear",
+            "prior_class": "movable",
+            "likely_motion": "revolute",
+            "evidence": "..."
+         }
+      ]
+      }
+
+      Now analyze the input image and output JSON only.
+
+  - id: prompt_b_vaps_scoring
+    video_from_input: true
+    text: |
+      [Prompt B: image + video + prior JSON -> final VAPS]
+
+      You are evaluating the articulation plausibility of a generated 3D result based on the following three inputs:
+      1. the input image
+      2. a motion video stitched from multiple views of the generated 3D object
+      3. the previously produced image-prior JSON
+
+      Your task is to compute a final score:
+      VAPS = VLM Articulation Plausibility Score, ranging from 0 to 100.
+
+      Important constraints:
+      - This is a pure VLM evaluation.
+      - Do not use any external tools.
+      - Do not score test coverage.
+      - For parts listed in the prior JSON, if the video does not provide sufficient evidence, do not penalize or reward them.
+      - The object in the video will sequentially show the motion behavior of all movable parts and will be shown from two different viewpoints.
+      - "fixed" generally means that there is no clear independent motion relative to adjacent structures. If a part judged as "fixed" moves through space under overall force in the video but has no motion relative to adjacent structures, it should not be considered an incorrect motion.
+      - "free" generally means that a part can move freely and unconstrained relative to all other structures. If a part has no motion relative to adjacent structures and only moves together with them as a whole, it should not be considered "free".
+      - If a certain part of the generated object is indeed immovable, it will not exhibit a motion state in the video, meaning it is fixed. Please do not regard it as unrevealed. Only parts that are not visible should be considered unrevealed.
+      - You must use the given prior JSON as the fixed reference prior. Do not rewrite its part labels.
+      - You must additionally detect newly revealed entities that appear in the video, are not listed in the prior JSON, and are clearly related to the main object.
+      - The output must be strict JSON.
+      - Do not output markdown.
+      - Do not output any extra text before or after the JSON.
+
+      You need to evaluate two types of objects:
+      1. main-object structural parts already listed in the prior JSON
+      2. related entities newly appearing in the video but not listed in the prior JSON
+
+      I. Evaluation of prior parts
+
+      You may only use the following enum values:
+      observed_state: "fixed" | "prismatic" | "revolute" | "free" | "unrevealed"
+
+      Definition of observed_state:
+      - "fixed": The part does not show clear independent articulation motion; ignore tiny passive jitter or rendering jitter.
+      - "prismatic": The part shows dominant translation along a stable axis relative to adjacent structures.
+      - "revolute": The part shows dominant rotation around a stable hinge, pivot, or axis relative to adjacent structures.
+      - "free": The part's motion cannot be well explained as stable fixed / prismatic / revolute motion relative to adjacent structures; it looks like unconstrained drift, detachment, or globally scattered motion.
+      - "unrevealed": The video does not provide enough visual evidence to judge the part.
+
+      Per-part scoring rules:
+      1. If observed_state = "unrevealed":
+         - still keep this part in the output
+         - set score to null
+         - set weight to 0
+         - this part does not participate in the S_prior calculation
+
+      2. If prior_class = "movable":
+         - if observed_state = likely_motion, then score = 10
+         - otherwise, if observed_state is one of "prismatic", "revolute", or "free", but is not equal to likely_motion, then score = 6
+         - otherwise, if observed_state = "fixed", then score = 0
+         - exception: if likely_motion = "unknown" and observed_state is one of "prismatic", "revolute", or "free", then score = 10
+
+      3. If prior_class = "immovable":
+         - if observed_state = "fixed", then score = 10
+         - otherwise, if observed_state is "prismatic" or "revolute", then score = 2
+         - otherwise, if observed_state = "free", then score = 0
+
+      4. If prior_class = "uncertain":
+         - if likely_motion != "free" and observed_state = "free", then score = 1
+         - otherwise, if observed_state = likely_motion and likely_motion != "unknown", then score = 8
+         - otherwise, score = 5
+
+      Per-part weighting rules:
+      - if observed_state = "unrevealed", then weight = 0
+      - otherwise, if visibility = "occluded_possible", then weight = 0.25
+      - otherwise, if visibility = "partial", then weight = 0.5
+      - otherwise, if prior_class = "uncertain", then weight = 0.75
+      - otherwise, weight = 1.0
+
+      Definition:
+      scored prior parts = all parts with observed_state != "unrevealed"
+
+      Calculation:
+      S_prior = 100 * (sum over scored prior parts of (weight * score / 10)) / (sum over scored prior parts of weight)
+
+      If there are no scored prior parts:
+      - set S_prior to null
+      - and treat the prior channel as inactive
+
+      II. Evaluation of newly revealed entities
+
+      You must detect moving entity parts that appear in the video, are not listed in the prior JSON, and are clearly related to the main object.
+
+      An object should be considered a newly revealed entity if it satisfies any of the following conditions:
+      1. It was originally occluded by the main object and reveals its own motion pattern in the video due to the main object's motion.
+      2. It may be inside the main object, in a container, in a drawer, in a cavity, on a surface, or attached to the main object.
+      3. It may fall out, become exposed, be released, or detach due to the main object's motion.
+      4. It is part of the generated result rather than pure background.
+
+      Do not treat the following as newly revealed entities:
+      - clearly unrelated background objects
+      - external manipulators, hands, tools, fixtures, or force applicators
+      - ground or scene background
+      unless they are clearly part of the generated result and directly related to the structure or contents of the main object.
+
+      You may only use the following enum values:
+      entity_role: "hidden_structural_part" | "contained_object" | "attached_object" | "spurious_object"
+      behavior_plausibility: "plausible" | "partly_plausible" | "implausible"
+      video_visibility: "clear" | "partial"
+
+      Definition of entity_role:
+      - "hidden_structural_part": A hidden structural part of the main object itself, not listed in the image prior, but revealed in the video.
+      - "contained_object": An independent content object inside the main object, in a container, drawer, cavity, or on a supporting surface, not listed in the image prior, but revealed in the video.
+      - "attached_object": An accessory attached to the main object, such as a pillow or quilt on a bed sheet.
+
+      They may actually be visible in the image, but were not correctly recognized or understood as object parts previously.
+
+      Rules for judging behavior_plausibility:
+      1. If entity_role = "hidden_structural_part":
+         - if the entity is reasonable as a hidden structure of the main object, and both its reveal process and motion are reasonable, then use "plausible"
+         - if its existence is basically reasonable and it should be a movable part, but its motion does not sufficiently match the expected motion pattern, then use "partly_plausible"
+         - if it is clearly unreasonable as a moving structure of the main object, or should not be movable at all, or its motion clearly violates structural logic, then use "implausible"
+
+      2. If entity_role = "contained_object":
+         - if the entity is reasonable as a contained object and its motion matches the expected motion pattern, then use "plausible"
+         - if its existence is basically reasonable and it is indeed a movable part, but its motion pattern is not sufficiently reasonable, then use "partly_plausible"
+         - if it clearly should not be a movable part, then use "implausible"
+
+      3. If entity_role = "attached_object":
+         - if its motion fully matches the expected motion pattern, then use "plausible"
+         - if it should be a movable part but its motion behavior does not sufficiently match the expected motion pattern, then use "partly_plausible"
+         - if it clearly should not be a movable part, then use "implausible"
+
+
+      Scoring rules for newly revealed entities:
+      - if behavior_plausibility = "plausible", then score = 10
+      - if behavior_plausibility = "partly_plausible", then score = 5
+      - if behavior_plausibility = "implausible", then score = 0
+
+      Weighting rules for newly revealed entities:
+      - if video_visibility = "clear", then weight = 1.0
+      - if video_visibility = "partial", then weight = 0.5
+
+      Definition:
+      revealed entities = all detected newly revealed entities
+
+      Calculation:
+      S_reveal = 100 * (sum over revealed entities of (weight * score / 10)) / (sum over revealed entities of weight)
+
+      If there are no revealed entities:
+      - set S_reveal to null
+      - and treat the reveal channel as inactive
+
+      III. Global structural score S_global
+
+      S_global must be one of the following values:
+      0, 25, 50, 75, 100
+
+      Select S_global according to the following criteria:
+      - 100: The overall motion pattern and newly revealed entities are highly coherent, and the result highly matches a reasonable articulated result corresponding to the image.
+      - 75: The result is mostly reasonable overall, with only slight global inconsistency.
+      - 50: Reasonable and unreasonable aspects coexist; there are clear but not catastrophic global issues.
+      - 25: The overall behavior is largely unreasonable; there are severe structural or content-logic problems.
+      - 0: Catastrophically unreasonable; the result shows fundamental articulation errors, incorrect topology, no reasonable source object, or structural collapse.
+
+      IV. Final overall score VAPS
+
+      Base weights:
+      - prior channel weight = 0.70
+      - reveal channel weight = 0.20
+      - global channel weight = 0.10
+
+      Active rules:
+      - if S_prior = null, then the prior channel is inactive, and its weight does not participate in final normalization
+      - if S_reveal = null, then the reveal channel is inactive, and its weight does not participate in final normalization
+      - S_global is always active
+
+      Let:
+      active_prior_weight = 0.70 if S_prior is not null else 0
+      active_reveal_weight = 0.20 if S_reveal is not null else 0
+      active_global_weight = 0.10
+
+      W = active_prior_weight + active_reveal_weight + active_global_weight
+
+      Final score:
+      VAPS = round(
+      (
+         active_prior_weight * S_prior if S_prior is not null else 0
+      ) +
+      (
+         active_reveal_weight * S_reveal if S_reveal is not null else 0
+      ) +
+      (
+         active_global_weight * S_global
+      )
+      all divided by W,
+      2
+      )
+
+      V. Final textual verdict
+
+      You must also provide a short final textual verdict:
+      - if VAPS >= 90: "excellent"
+      - else if VAPS >= 75: "good"
+      - else if VAPS >= 60: "fair"
+      - else if VAPS >= 40: "poor"
+      - else: "bad"
+
+      VI. Output format
+
+      Output JSON only, and strictly follow the schema below:
+
+      {
+      "task": "vaps_scoring",
+      "object_summary": "...",
+      "parts": [
+         {
+            "part_id": 1,
+            "part_name": "...",
+            "visibility": "clear",
+            "prior_class": "movable",
+            "likely_motion": "revolute",
+            "observed_state": "revolute",
+            "score": 10,
+            "weight": 1.0,
+            "reason": "..."
+         }
+      ],
+      "revealed_entities": [
+         {
+            "entity_id": 1,
+            "entity_name": "...",
+            "entity_role": "contained_object",
+            "video_visibility": "clear",
+            "behavior_plausibility": "plausible",
+            "score": 10,
+            "weight": 1.0,
+            "reason": "..."
+         }
+      ],
+      "aggregates": {
+         "num_parts_total": 0,
+         "num_parts_scored": 0,
+         "num_revealed_entities": 0,
+         "S_prior": null,
+         "S_reveal": null,
+         "S_global": 0,
+         "VAPS": 0.0,
+         "verdict": "excellent"
+      }
+      }
+
+      Additional output rules:
+      - You must copy part_id, part_name, visibility, prior_class, and likely_motion exactly from the given prior JSON.
+      - Do not add extra fields.
+      - Do not omit any part from the prior JSON.
+      - If a part is unrevealed, still keep it in the parts list, and set score = null and weight = 0.
+      - revealed_entities should only include related entities newly detected in the video and not included in the prior JSON.
+      - entity_id must start from 1 and increase by 1 each time, with no skipped numbers.
+      - reason must be brief: at most 20 English words or at most 20 Chinese characters.
+      - Output JSON only.
+
+      Now read the input image, input video, and given prior JSON, then output JSON only.

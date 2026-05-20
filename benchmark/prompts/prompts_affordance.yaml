@@ -1,0 +1,171 @@
+turns:
+  - id: affordance estimation
+    image_from_input: true
+    affordance_views_from_input: true
+    text: |
+      [Prompt: image + affordance heatmap -> final APS]
+
+      You are evaluating the affordance plausibility of an object.
+
+      The input will provide one original object image and multiple affordance heatmap view images:
+      1. the original object image
+      2. several heatmap views generated from the affordance information output by the algorithm
+
+      Your task is to judge whether this affordance heatmap is reasonable, based on:
+      - the object category and structure in the original image
+      - the relative highlight intensities of different regions in the heatmap
+      - common-sense human interaction patterns in everyday life
+
+      and output one final score:
+
+      APS = Affordance Plausibility Score, ranging from 0 to 100.
+
+      Important constraints:
+      - This is a pure VLM evaluation.
+      - Do not use any external tools.
+      - Do not output markdown.
+      - Do not output any extra text before or after the JSON.
+      - Output strict JSON only.
+      - You are evaluating whether the heatmap expresses affordance reasonably, not the visual beauty of the image, and not the rendering quality of the heatmap itself.
+      - In the heatmap views, redder regions indicate higher affordance; weaker or cooler colors indicate lower affordance.
+      - The essence of this heatmap is to express the relative affordance strengths of different parts within the same object. Therefore, your main focus should be whether the relative ranking is reasonable, rather than whether all interactive regions are highlighted equally strongly.
+      - You must avoid bias as much as possible. Do not over-penalize the total score because of a small number of obvious mistakes, and do not over-reward the total score because of a small number of reasonable hotspots.
+      - You must make a holistic judgment: consider both the reasonable aspects and the unreasonable aspects, and then form a balanced final score.
+      - For regions that are difficult to judge due to viewpoint, occlusion, or resolution limitations, remain cautious; do not over-penalize and do not over-reward.
+
+      Definition of "main object":
+      The main object is the primary target object in the original image, and it is also the core object corresponding to the heatmap.
+
+      Definition of "affordance":
+      Affordance refers to the reasonable possibility that a person may interact with a region of the object through touching, grasping, supporting, pulling, pushing, pressing, rotating, opening, closing, sitting/lying, bearing, operating, and similar actions.
+      Strong affordance does not necessarily mean that the region moves; instead, it means that the region is more suitable or more likely to be interacted with by a person.
+
+      Additional principle: potential danger
+      - If a region may cause harm to the human body according to common sense, it should usually be regarded as having lower affordance.
+      - For example, sharp edges, dangerous protrusions, parts that may easily pinch or cut the user, and dangerous regions that are not suitable for direct contact should usually not be highlighted as strong affordance.
+      - An exception is allowed only when the image clearly shows that the dangerous region itself is specifically designed as a human-interaction part.
+      - You must treat safety as part of affordance plausibility judgment.
+
+      I. Evaluation principles
+
+      You must first establish a common-sense prior ranking of interaction strength for the regions of the main object based on the original image, and then compare it with the heatmap.
+
+      Your evaluation must focus on the following three aspects:
+
+      1. Relative Ranking Plausibility
+      Whether the ranking of highlight strengths among different regions in the heatmap is consistent with the common-sense priority of human interaction.
+      This is the most important evaluation focus.
+
+      2. Salient Misranking
+      Whether there are a small number of key ranking errors.
+      For example:
+      - a key interaction region that should have high affordance is clearly not highlighted enough
+      - a region that should have low affordance is highlighted more strongly than a key interaction region
+      - a dangerous region is highlighted as strong affordance
+
+      3. Overall Common-Sense Plausibility
+      Overall, whether this heatmap looks like a reasonable expression of the human interaction distribution for this type of object.
+
+      II. How to think during scoring
+
+      You must think in the following order, but do not reveal your intermediate reasoning in the output:
+
+      Step 1:
+      Based only on the original image and everyday common sense, judge:
+      - which regions should have high affordance
+      - which regions should have medium affordance
+      - which regions should have low affordance
+
+      Step 2:
+      Observe all provided heatmap views and judge whether the actual highlight ranking is broadly consistent with the common-sense ranking above.
+
+      Step 3:
+      Pay special attention to whether there are key ranking errors, including:
+      - key interaction regions being ranked too low
+      - secondary regions being ranked too high
+      - dangerous regions being highlighted incorrectly
+
+      Step 4:
+      Combine the reasonable parts and the unreasonable parts, and give a balanced final APS score.
+
+      III. Scoring standard
+
+      Core meaning of APS:
+      - High score: the relative ranking in the heatmap is highly consistent with everyday common sense, the priority of key regions is reasonable, and dangerous regions are not highlighted incorrectly
+      - Medium score: the overall direction is basically reasonable, but there are several noticeable ranking errors or local anomalies
+      - Low score: the hierarchy of the heatmap is clearly confused, the ranking of key regions is unreasonable, or dangerous / inappropriate interaction regions are highlighted incorrectly
+
+      APS score interpretation:
+      - 90–100: the relative ranking is highly reasonable, and the overall result strongly matches common sense
+      - 75–89: generally reasonable, with a small number of ranking deviations that are not fatal
+      - 60–74: moderate, with both reasonable and unreasonable aspects, and clear ranking problems
+      - 40–59: poor, with many problems in the ranking of key regions
+      - 0–39: very poor, with an overall ranking that clearly violates common sense, or dangerous / unreasonable regions being severely highlighted incorrectly
+
+      IV. Output requirements
+
+      To reduce bias, do not output long exhaustive lists.
+      You only need to output a small number of the most important pieces of evidence:
+
+      1. expected_high_affordance_regions
+      List the key regions that should have the highest affordance according to common sense.
+      At most 3 items.
+
+      2. major_alignment
+      List the key alignment points in the heatmap that most support its plausibility.
+      At most 3 items.
+
+      3. major_misalignment
+      List the key mismatch points in the heatmap that most strongly affect the total score.
+      At most 3 items.
+
+      Requirements:
+      - Each description must be short.
+      - Each item must be at most 20 English words, or at most 20 Chinese characters.
+      - If one category has no obvious content, output an empty list [].
+      - Do not invent parts that clearly do not exist in the image.
+      - Do not output many tiny fragmented regions.
+      - Keep only the most important points that most strongly determine the total score.
+
+      V. Final verbal judgment
+
+      You must also output a short verdict based on APS:
+      - if APS >= 90: "excellent"
+      - else if APS >= 75: "good"
+      - else if APS >= 60: "fair"
+      - else if APS >= 40: "poor"
+      - else: "bad"
+
+      VI. Output format
+
+      Output strict JSON only, and it must exactly follow this schema:
+
+      {
+        "task": "affordance_scoring",
+        "object_summary": "...",
+        "expected_high_affordance_regions": [
+          "..."
+        ],
+        "major_alignment": [
+          "..."
+        ],
+        "major_misalignment": [
+          "..."
+        ],
+        "APS": 0.0,
+        "verdict": "excellent",
+        "reasoning": "..."
+      }
+
+      Additional output rules:
+      - APS must be a numeric type, not a string.
+      - APS must be between 0 and 100.
+      - APS must be rounded to 2 decimal places.
+      - verdict must be one of:
+        "excellent" | "good" | "fair" | "poor" | "bad"
+      - reasoning must be short, summarizing whether the overall ranking is reasonable; do not provide a long explanation
+      - Do not add extra fields.
+      - Do not omit any fields.
+      - Output JSON only.
+
+      Now read the input image and heatmap, and output JSON only.

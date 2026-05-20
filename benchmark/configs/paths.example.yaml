@@ -1,0 +1,20 @@
+# Example path configuration for the PhysX-Omni benchmark.
+# Copy this file to paths.yaml and edit the values for your machine.
+
+physx_result_root: physx_result
+benchmark_asset_root: benchmark/benchmark_assets
+benchmark_manifest_root: benchmark/benchmark_manifests
+benchmark_result_root: benchmark/benchmark_results
+vlm_model_path: Qwen/Qwen3.5-122B-A10B
+
+condition_image_root: benchmark/benchmark_assets/condition_images
+rendered_view_root: benchmark/benchmark_assets/rendered_views/description
+affordance_heatmap_root: benchmark/benchmark_assets/affordance_heatmaps
+kinematic_video_root: benchmark/benchmark_assets/kinematic_videos
+material_video_root: benchmark/benchmark_assets/material_videos
+material_floor_video_root: benchmark/benchmark_assets/material_videos_v2/floor
+material_water_video_root: benchmark/benchmark_assets/material_videos/water
+quality_reference_image: benchmark/assets/quality_reference/image.png
+description_metadata_root: benchmark/assets/description
+material_metric_json_root: physx_result/material_metric_json/origin
+watertight_mesh_root: physx_result/watertightFix_max3000

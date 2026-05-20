@@ -1,0 +1,71 @@
+# Multi-GPU batch config for water-entry material videos.
+# Run one or more method/dataset pairs:
+#   python benchmark/code/render/material_batch/water/multi_gpu_batch.py \
+#     --config benchmark/code/render/material_batch/water/config.toml \
+#     --pairs ours-mobility,physxanything-mobility --gpus 0,1
+# Dry run:
+#   python benchmark/code/render/material_batch/water/multi_gpu_batch.py \
+#     --config benchmark/code/render/material_batch/water/config.toml --dry-run
+
+[defaults]
+# Final videos: {output_dir}/{dataset}_{scene_id}_mpm.mp4
+output_dir = "benchmark/benchmark_assets/material_videos/water"
+
+[sim]
+# Passed to multi_part_water_drop.py (add more keys as needed)
+steps = 1000
+fps = 30
+render_every = 12
+warmup_steps = 200
+progress_interval = 50
+rotate_x = -90.0
+drop_height = 0.12
+# cpu = true
+# vis = true
+# no_record = true   # set true to skip mp4
+
+[gpus]
+# Physical GPU indices; each worker gets one via CUDA_VISIBLE_DEVICES
+devices = [0]
+
+[[roots]]
+name = "ours_inthewild_181500"
+method = "ours"
+dataset = "inthewild"
+watertight = "physx_result/watertightFix_max3000/ours_inthewild_181500"
+metric_json = "physx_result/material_metric_json/origin/ours_inthewild_181500"
+
+[[roots]]
+name = "ours_mobility_181500"
+method = "ours"
+dataset = "mobility"
+watertight = "physx_result/watertightFix_max3000/ours_mobility_181500"
+metric_json = "physx_result/material_metric_json/origin/ours_mobility_181500"
+
+[[roots]]
+name = "ours_verse_181500"
+method = "ours"
+dataset = "verse"
+watertight = "physx_result/watertightFix_max3000/ours_verse_181500"
+metric_json = "physx_result/material_metric_json/origin/ours_verse_181500"
+
+[[roots]]
+name = "output_physxanything_inthewild"
+method = "physxanything"
+dataset = "inthewild"
+watertight = "physx_result/watertightFix_max3000/output_physxanything_inthewild"
+metric_json = "physx_result/material_metric_json/origin/output_physxanything_inthewild"
+
+[[roots]]
+name = "output_physxanything_mobility"
+method = "physxanything"
+dataset = "mobility"
+watertight = "physx_result/watertightFix_max3000/output_physxanything_mobility"
+metric_json = "physx_result/material_metric_json/origin/output_physxanything_mobility"
+
+[[roots]]
+name = "output_physxanything_verse"
+method = "physxanything"
+dataset = "verse"
+watertight = "physx_result/watertightFix_max3000/output_physxanything_verse"
+metric_json = "physx_result/material_metric_json/origin/output_physxanything_verse"

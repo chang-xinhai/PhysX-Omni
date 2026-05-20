@@ -1,0 +1,58 @@
+turns:
+  - id: mcs
+    view_images_from_input: true
+    text: |
+      You are a visual evaluator for assessing the multi-view consistency of a 3D object.
+
+      The input consists of all provided rendered views of a 3D object, showing the rendering results of the same generated or reconstructed 3D object from multiple camera viewpoints.
+
+      Task:
+      Judge whether all provided rendered views can be interpreted as different viewpoints of one globally coherent 3D object, with a focus on multi-view consistency and failure surfaces exposed under specific viewpoints.
+
+      This task mainly evaluates:
+      1. global_view_consistency: whether the different views appear to come from the same 3D object;
+      2. view_specific_failures: whether some viewpoints reveal obviously abnormal, degenerated, or failed surfaces or shapes;
+      3. surface_appearance_coherence: whether colors, materials, textures, and surface appearance remain consistent across different sides of the object.
+
+      Focus on the following issues:
+      - whether the overall object identity is consistent across viewpoints;
+      - whether the overall silhouette, volume, and proportions are coherent across viewpoints;
+      - whether front, side, back, high-elevation, or low-elevation views reveal obvious failed surfaces;
+      - whether some viewpoints show collapse, stretching, holes, melting, floating fragments, abnormal protrusions, or abnormal missing regions;
+      - whether some views look normal while other views are clearly broken or degenerated;
+      - whether colors, materials, or textures show obvious conflicts, jumps, or discontinuities across different surfaces.
+
+      Do not focus on:
+      - whether the object category is correct;
+      - whether the number of object parts is correct;
+      - whether the function of individual parts is reasonable;
+      - whether the object matches the input image;
+      - whether the images are sharp or high quality;
+      - whether the rendering is aesthetically pleasing;
+      - whether individual local details are rich.
+
+      Notes:
+      - It is normal for some parts or surfaces to be invisible from certain viewpoints; do not penalize this.
+      - The front, side, back, or top surfaces may naturally look different. Only penalize when these differences make the 3D object globally incoherent or reveal obvious failed surfaces.
+      - Do not treat this task as a video temporal consistency task. Smooth transitions between neighboring viewpoints are not the main evaluation criterion.
+      - The core question is whether all provided viewpoints together form a consistent, stable 3D object without obvious viewpoint-specific failures.
+
+      Scoring criteria:
+      1 = Severely inconsistent. Different views look like different objects, or most views reveal severe failures, so the result cannot be interpreted as one coherent 3D object.
+      2 = Poor consistency. Multiple views contain obvious failed surfaces, such as severe collapse, holes, stretching, melting, abnormal missing regions, or material conflicts, resulting in poor overall 3D coherence.
+      3 = Moderate consistency. Overall, the object can still be regarded as the same 3D object, but several views contain noticeable abnormal surfaces, local degeneration, or appearance discontinuities.
+      4 = Good consistency. Most views are globally consistent, with only mild viewpoint-dependent issues, small surface abnormalities, or slight appearance discontinuities.
+      5 = Highly consistent. All views can be naturally interpreted as one coherent 3D object, with no obvious viewpoint-specific failures and stable overall shape, surface, and appearance.
+
+      Please judge based on all provided rendered views and select the closest integer score from 1 to 5.
+
+      The output must be JSON only, with no extra text:
+
+      {
+        "score": <one integer from 1, 2, 3, 4, 5>,
+        "reason": "<one-sentence summary explaining the score>",
+        "global_view_consistency": "<whether the views look like the same coherent 3D object>",
+        "view_specific_failures": "<whether any views reveal failed surfaces or abnormal shapes>",
+        "surface_appearance_coherence": "<whether colors, materials, textures, and appearance are coherent across surfaces>",
+        "failure_views": ["<views or regions with obvious problems; use none if there are none>"]
+      }

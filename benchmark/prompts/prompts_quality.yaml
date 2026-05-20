@@ -1,0 +1,46 @@
+turns:
+  - id: rqs
+    static_image_paths:
+      - benchmark/assets/quality_reference/image.png
+    view_images_from_input: true
+    text: |
+      You are an evaluator for assessing the visual quality of rendered images from 3D reconstruction results.
+
+      The input includes:
+      1. A reference rating scale from 1 to 5, where the score increases from low to high visual clarity and recognizability of the rendered result.
+      2. Four rendered views of the object to be evaluated. These images are rendered from one 3D reconstruction result.
+
+      Please note:
+      This task mainly evaluates rendered image quality, with a focus on clarity, detail visibility, and the severity of visual artifacts.
+      If the object structure is visible, but the images contain blur, softened edges, unclear texture, noise, or rendering artifacts, the score should be reduced accordingly based on these visual quality issues.
+
+      Scoring criteria:
+      1 = Very poor. The images are heavily blurred, the object is barely recognizable, and most edges and details are lost.
+      2 = Poor. The object is roughly recognizable, but the images are still very blurry, with noticeably softened contours and substantial loss of texture and detail.
+      3 = Fair. The main object is clearly recognizable, but there is still obvious blur, a low-resolution appearance, unsharp edges, or unclear texture.
+      4 = Good. The images are overall clear, the object contours and major details are visible, with only slight blur, minor noise, or a small amount of local artifacts.
+      5 = Excellent. The images are very clear, with sharp contours, rich texture and local details, and almost no noticeable blur, noise, or artifacts.
+
+      Focus on the following dimensions:
+      - overall clarity: whether the images are clear as a whole;
+      - edge sharpness: whether the object contours and edges are sharp;
+      - detail visibility: whether local details are visible;
+      - texture clarity: whether the surface texture is clear;
+      - blur level: whether there is obvious blur or a low-resolution appearance;
+      - artifacts: whether there is noise, ghosting, fragmentation, stretching, floating fragments, or abnormal rendering artifacts.
+
+      Please compare the rendered views against the 1-to-5 quality reference scale and select the closest integer score.
+
+      Only score based on the visible image content. Do not assume information from unseen viewpoints.
+
+      The output must be JSON only, with no extra text:
+
+      {
+        "score": <one integer from 1, 2, 3, 4, 5>,
+        "reason": "<one-sentence explanation for the score>",
+        "clarity": "<evaluation of overall clarity>",
+        "edge_sharpness": "<evaluation of edge sharpness>",
+        "detail_visibility": "<evaluation of detail visibility>",
+        "texture_clarity": "<evaluation of texture clarity>",
+        "artifacts": "<evaluation of visible artifacts>"
+      }

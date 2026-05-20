@@ -1,0 +1,115 @@
+turns:
+  - id: description_scoring
+    view_images_from_input: true
+    mask_images_from_input: true
+    prompt: |
+      You are a visual evaluator for part-level description consistency in generated 3D objects.
+
+      The input includes:
+      1. One colored rendered image of the generated 3D object.
+      2. One corresponding black-and-white mask image from the same view.
+      3. A one-sentence reference description:
+         "{reference_description}"
+
+      Image convention:
+      - The colored rendered image shows the complete generated 3D object with all visible parts.
+      - The black-and-white mask image indicates the region selected by the generation method for the reference description.
+      - In the mask image, white pixels indicate the predicted target region, and black pixels indicate non-target regions.
+      - The mask image corresponds to the colored rendered image from the same view.
+      - The mask is not part of the object appearance. Do not treat the white mask color as the actual color, material, or texture of the object.
+      - Use the colored rendered image to understand the object semantics, essential object identity, part identity, shape, structure, and spatial context.
+      - Use the mask image only to determine which region is selected for evaluation.
+
+      Evaluation target:
+      Judge whether the white mask region semantically corresponds to the object part described by the reference description, and whether the mask precisely localizes that part.
+
+      Important principles:
+      - Do not give a high score merely because the target part is included somewhere inside the mask.
+      - For a part-level description, the main body of the white mask must be the described target part.
+      - If the mask covers the whole object, most of the object, or many unrelated parts, it must be penalized even if it includes the target part.
+      - If the generated object's essential semantic category or intrinsic object identity is inconsistent with the reference description, the score must be penalized.
+      - Do not rely heavily on left/right wording or other potentially ambiguous spatial-position phrases. Prioritize essential semantics, object identity, part identity, and mask precision.
+      - Do not evaluate overall rendering quality, image aesthetics, or multi-view consistency.
+      - Mild blur, noise, limited texture, or minor rendering artifacts should not be penalized unless they prevent identifying the selected part.
+      - If the described part is not visible or cannot be determined from the provided view, treat it as uncertain instead of automatically wrong.
+      - Judge only from the provided colored rendering and mask image.
+
+      Final score:
+      DCS = round(0.60 * alignment_score + 0.40 * precision_score, 2)
+
+      Both sub-scores must be numbers from 0 to 100.
+
+      1. Semantic Alignment (alignment_score)
+      Evaluate whether the white mask region matches the reference description in essential object attributes, semantic category, and part identity.
+
+      This dimension is about what the selected region is, semantically and intrinsically. It is not enough that the region merely touches or contains the target part. The selected region should mainly consist of the described semantic part.
+
+      Levels:
+      - excellent / 90-100:
+        The white region strongly matches the reference description in essential object attributes, semantic category, and part identity.
+        The target part identity is clear, and almost no unrelated main object regions are mixed into the mask.
+        If the description refers to a local part, the mask must mainly cover that local part rather than the entire object.
+      - good / 70-89:
+        The white region mostly matches the reference description in essential object attributes and semantics.
+        The target part identity is reasonably clear, with only a small amount of adjacent or structurally related extra region.
+        The extra region does not change the main semantic interpretation: the mask is still mainly the described target part.
+      - fair / 40-69:
+        The white region has some semantic relationship to the reference description, but the alignment is unstable or insufficient.
+        The mask may include the target part while also mixing in many unrelated parts, or the essential object attributes, semantic category, or part identity can only be partially confirmed.
+        The generated object may weakly support the description, but the selected region is not cleanly or confidently the described part.
+      - poor / 0-39:
+        The white region is clearly inconsistent with the reference description in essential object attributes, semantic category, or part identity.
+        This includes cases where the mask mainly selects a wrong part, the description is a local part but the mask covers almost the whole object, the generated object's semantic category or intrinsic identity does not support the description, or the target part does not exist, is unrecognizable, or cannot be confirmed in the colored image.
+
+      Hard caps for alignment_score:
+      - If the description is a local part but the mask covers almost the entire object, alignment_score must be at most 40.
+      - If the main white mask region is not the described target part and only incidentally includes it, alignment_score must be at most 50.
+      - If the generated object's semantic category or intrinsic object identity is clearly inconsistent with the reference description, alignment_score must be at most 40.
+      - If the target part is absent, unrecognizable, or cannot be confirmed, alignment_score must be at most 30.
+
+      2. Mask Precision (precision_score)
+      Evaluate whether the white mask precisely localizes the target part described by the reference description.
+
+      This dimension is about where the mask is and how much unrelated area it includes. A mask that covers the whole object or most of the main body is imprecise for a local part description, even if it contains the correct part.
+
+      Levels:
+      - excellent / 90-100:
+        The mask region closely matches the target part. There is almost no spillover into unrelated regions and no obvious missing target area.
+        The mask size is appropriate for the visible extent of the target part.
+      - good / 70-89:
+        The mask is mostly accurate. It may have slight spillover or slight under-coverage, but the main selected region clearly corresponds to the target part.
+        Extra covered area is small and mostly adjacent or structurally related.
+      - fair / 40-69:
+        The mask has clear localization problems but still covers most of the visible target part.
+        It may include obvious non-target parts, be too broad, miss important target areas, or have rough boundaries that mix target and non-target regions.
+      - poor / 0-39:
+        The mask localization is severely wrong.
+        This includes masks that cover the whole object or most of the main body, mainly cover unrelated regions, barely cover the target part, are nearly empty, all black, or otherwise unusable.
+
+      Hard caps for precision_score:
+      - If the description is a local part but the mask covers the entire object or most of the main body, precision_score must be at most 20.
+      - If more than half of the white mask area is clearly not the target part, precision_score must be at most 50.
+      - If the mask only incidentally includes the target part but its main area is unrelated, precision_score must be at most 40.
+      - If the mask is nearly empty, all black, or the target region is not visible, precision_score must be 0.
+
+      Output requirements:
+      - Output a single valid JSON object only.
+      - Do not use Markdown code fences.
+      - Do not add any text before or after the JSON.
+      - The field "score" must equal the final DCS value for compatibility.
+
+      {
+        "task": "description_mask_scoring",
+        "object_summary": "<brief description of the generated object and selected mask region>",
+        "reference_description": "{reference_description}",
+        "alignment_level": "<excellent | good | fair | poor>",
+        "alignment_score": <number from 0 to 100>,
+        "alignment_reason": "<explain whether the selected region matches the description in essential object attributes, semantic category, and part identity>",
+        "precision_level": "<excellent | good | fair | poor>",
+        "precision_score": <number from 0 to 100>,
+        "precision_reason": "<explain whether the mask precisely localizes the target part or over-covers unrelated regions>",
+        "DCS": <round(0.60 * alignment_score + 0.40 * precision_score, 2)>,
+        "score": <same value as DCS>,
+        "verdict": "<excellent | good | fair | poor>",
+        "reason": "<one-sentence summary of the final judgment, explicitly mentioning severe over-coverage when present>"
+      }
