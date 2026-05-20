@@ -16,7 +16,7 @@ for Rigid, Deformable, and Articulated Objects
 
 ## 🏆 News
 
-- We release the code of PhysX-Omni and our new dataset PhysXVerse 🎉
+- We release the code of PhysX-Omni, PhysXVerse, and  PhysX-Bench 🎉
 
 ## I. PhysX-Omni
 
