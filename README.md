@@ -2,7 +2,7 @@
 <h1 align="center">PhysX-Omni: Unified Simulation-Ready Physical 3D Generation
 for Rigid, Deformable, and Articulated Objects
 </h1>
-<p align="center"><a href="https://arxiv.org/abs/"><img src='https://img.shields.io/badge/arXiv-Paper-red?logo=arxiv&logoColor=white' alt='arXiv'></a>
+<p align="center">
 <a href='https://physx-omni.github.io/'><img src='https://img.shields.io/badge/Project_Page-Website-green?logo=homepage&logoColor=white' alt='Project Page'></a>
 <a href='https://huggingface.co/datasets/PhysX-Omni/PhysXVerse'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-blue'></a>
 <a href='https://youtu.be/ZCgj4ffz4yk'><img src='https://img.shields.io/youtube/views/ZCgj4ffz4yk'></a>
@@ -10,6 +10,7 @@ for Rigid, Deformable, and Articulated Objects
 <div style="width: 100%; text-align: center; margin:auto;">
     <img style="width:100%" src="img/teaser.png">
 </div>
+
 
 
 
