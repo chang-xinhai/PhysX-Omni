@@ -1,5 +1,7 @@
 # Specifies 
 pretrain/
+ours_demo*/
+outputs/
 
 
 # Byte-compiled / optimized / DLL files

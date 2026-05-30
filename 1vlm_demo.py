@@ -664,6 +664,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--imagepath", type=str, default='demo')
     parser.add_argument("--modelpath", type=str, default='pretrain')
+    parser.add_argument("--savedir", type=str, default='ours_demo')
+    parser.add_argument("--attn", type=str, default=os.environ.get("PHYSX_VLM_ATTN", "sdpa"), choices=["eager", "sdpa", "flash_attention_2"])
+    parser.add_argument("--device-map", type=str, default=os.environ.get("PHYSX_VLM_DEVICE_MAP", "auto"), choices=["auto", "cuda"])
     args = parser.parse_args()
     save_part_ply=True
 
@@ -677,14 +680,17 @@ if __name__ == '__main__':
     
 
     modelpath=args.modelpath
-    savedir='ours_demo'
+    savedir=args.savedir
 
-    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                modelpath,
-                torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",
-                device_map="auto",
-            )
+    model_kwargs = dict(
+        torch_dtype=torch.bfloat16,
+        attn_implementation=args.attn,
+    )
+    if args.device_map == "auto":
+        model_kwargs["device_map"] = "auto"
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(modelpath, **model_kwargs)
+    if args.device_map == "cuda":
+        model = model.cuda()
     min_pixels = 65536
     max_pixels = 262144
 
