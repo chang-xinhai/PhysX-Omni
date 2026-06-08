@@ -63,5 +63,28 @@ conda activate scene
 python 4layout_bbox.py
 ```
 
+### Local smoke test
+
+This repo now includes a micromamba-friendly wrapper for the object extraction
+stage. It skips RAM tagging when you pass a known object prompt, so only
+GroundingDINO and SAM checkpoints are required:
+
+```bash
+./applications_scene/0scene_gen.sh \
+  demo/microwave_7221_urdf_1024.png \
+  microwave \
+  applications_scene/outputs_example_script
+```
+
+The cropped object image for PhysX-Omni is written to:
+
+```bash
+applications_scene/outputs_example_script/crop_masked_images_rgba/0.png
+```
+
+For real scene images, replace `microwave` with a comma-separated text prompt
+for the target objects, for example `chair, table lamp, mug`. If you omit
+`--text_prompt` when calling `1automatic_label_seg.py` directly, the script
+uses RAM tagging and requires `ram_swin_large_14m.pth`.
 
 

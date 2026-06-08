@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.join(SCRIPT_DIR, "Grounded-Segment-Anything")
+DEFAULT_CKPT_DIR = os.path.join(PROJECT_ROOT, "ckpt")
 
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -56,6 +57,12 @@ class CropInfo:
 
 def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
+
+
+def resolve_path(path: str):
+    if path is None or os.path.isabs(path):
+        return path
+    return os.path.join(SCRIPT_DIR, path)
 
 
 def load_image(image_path):
@@ -456,25 +463,28 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
+        default=os.path.join(
+            PROJECT_ROOT,
+            "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
+        ),
         help="path to config file",
     )
     parser.add_argument(
         "--ram_checkpoint",
         type=str,
-        default="Grounded-Segment-Anything/ckpt/ram_swin_large_14m.pth",
+        default=os.path.join(DEFAULT_CKPT_DIR, "ram_swin_large_14m.pth"),
         help="path to checkpoint file",
     )
     parser.add_argument(
         "--grounded_checkpoint",
         type=str,
-        default="Grounded-Segment-Anything/ckpt/groundingdino_swint_ogc.pth",
+        default=os.path.join(DEFAULT_CKPT_DIR, "groundingdino_swint_ogc.pth"),
         help="path to checkpoint file",
     )
     parser.add_argument(
         "--sam_checkpoint",
         type=str,
-        default="Grounded-Segment-Anything/ckpt/sam_vit_h_4b8939.pth",
+        default=os.path.join(DEFAULT_CKPT_DIR, "sam_vit_h_4b8939.pth"),
         help="path to checkpoint file",
     )
     parser.add_argument(
@@ -502,6 +512,12 @@ if __name__ == "__main__":
     parser.add_argument("--iou_threshold", type=float, default=0.5, help="iou threshold")
     parser.add_argument("--device", type=str, default="cuda", help="device")
     parser.add_argument(
+        "--text_prompt",
+        type=str,
+        default=None,
+        help="optional comma-separated object names; skips RAM tagging when provided",
+    )
+    parser.add_argument(
         "--target_bbox_ratio",
         type=float,
         default=0.65,
@@ -509,11 +525,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    config_file = args.config
-    ram_checkpoint = args.ram_checkpoint
-    grounded_checkpoint = args.grounded_checkpoint
-    sam_checkpoint = args.sam_checkpoint
-    sam_hq_checkpoint = args.sam_hq_checkpoint
+    config_file = resolve_path(args.config)
+    ram_checkpoint = resolve_path(args.ram_checkpoint)
+    grounded_checkpoint = resolve_path(args.grounded_checkpoint)
+    sam_checkpoint = resolve_path(args.sam_checkpoint)
+    sam_hq_checkpoint = resolve_path(args.sam_hq_checkpoint)
     use_sam_hq = args.use_sam_hq
     image_path = args.input_image
     split = args.split
@@ -535,36 +551,46 @@ if __name__ == "__main__":
 
     image_pil.save(os.path.join(output_dir, "raw_image.jpg"))
 
-    # initialize Recognize Anything Model
-    normalize = TS.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    transform = TS.Compose([
-                    TS.Resize((384, 384)),
-                    TS.ToTensor(), normalize
-                ])
-    
-    # load model
-    ram_model = ram(pretrained=ram_checkpoint,
-                                        image_size=384,
-                                        vit='swin_l')
-    # threshold for tagging
-    # we reduce the threshold to obtain more tags
-    ram_model.eval()
+    if args.text_prompt:
+        tags = args.text_prompt
+        print("Image Tags from --text_prompt: ", tags)
+    else:
+        if not os.path.exists(ram_checkpoint):
+            raise FileNotFoundError(
+                f"RAM checkpoint not found: {ram_checkpoint}. "
+                "Pass --text_prompt to skip RAM tagging for a known object."
+            )
 
-    ram_model = ram_model.to(device)
-    raw_image = image_pil.resize(
-                    (384, 384))
-    raw_image  = transform(raw_image).unsqueeze(0).to(device)
+        # initialize Recognize Anything Model
+        normalize = TS.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        transform = TS.Compose([
+                        TS.Resize((384, 384)),
+                        TS.ToTensor(), normalize
+                    ])
+        
+        # load model
+        ram_model = ram(pretrained=ram_checkpoint,
+                                            image_size=384,
+                                            vit='swin_l')
+        # threshold for tagging
+        # we reduce the threshold to obtain more tags
+        ram_model.eval()
 
-    res = inference_ram(raw_image , ram_model)
+        ram_model = ram_model.to(device)
+        raw_image = image_pil.resize(
+                        (384, 384))
+        raw_image  = transform(raw_image).unsqueeze(0).to(device)
 
-    # Currently ", " is better for detecting single tags
-    # while ". " is a little worse in some case
-    tags=res[0].replace(' |', ',')
-    tags_chinese=res[1].replace(' |', ',')
+        res = inference_ram(raw_image , ram_model)
 
-    print("Image Tags: ", res[0])
-    print("图像标签: ", res[1])
+        # Currently ", " is better for detecting single tags
+        # while ". " is a little worse in some case
+        tags=res[0].replace(' |', ',')
+        tags_chinese=res[1].replace(' |', ',')
+
+        print("Image Tags: ", res[0])
+        print("图像标签: ", res[1])
     
 
     
@@ -578,6 +604,11 @@ if __name__ == "__main__":
         text_threshold,
         device=device,
     )
+    if boxes_filt.numel() == 0:
+        raise RuntimeError(
+            f"GroundingDINO found no boxes for prompt {tags!r}; "
+            "try lowering --box_threshold/--text_threshold or changing --text_prompt."
+        )
 
     # initialize SAM
     if use_sam_hq:

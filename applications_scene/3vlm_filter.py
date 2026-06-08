@@ -2,13 +2,8 @@ from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 import torch
 import os
-import ipdb
-import numpy as np
 from PIL import Image
-import trimesh
-import logging
 import argparse
-import re
 
 import json
 
@@ -49,21 +44,32 @@ def generate_save(model,messages,save_dir,save_name='test',save=True):
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--imagepath", default="./outputs/inpainting_0")
+    parser.add_argument("--savepath", default="outputs/filter")
+    parser.add_argument("--label_json", default="outputs/label.json")
+    parser.add_argument("--modelpath", default="Qwen/Qwen2.5-VL-7B-Instruct")
+    parser.add_argument("--attn", default="sdpa", choices=["eager", "sdpa", "flash_attention_2"])
+    parser.add_argument("--device-map", default="auto", choices=["auto", "cuda"])
+    args = parser.parse_args()
 
-    imagepath='./outputs/inpainting_0'
-    savepath='outputs/filter'
+    imagepath=args.imagepath
+    savepath=args.savepath
     os.makedirs(os.path.join(savepath), exist_ok=True)
-    with open(os.path.join('outputs','label.json'), 'r') as file:
+    with open(args.label_json, 'r') as file:
         labeldata = json.load(file)
 
-    modelpath="Qwen/Qwen2.5-VL-7B-Instruct"
+    modelpath=args.modelpath
     
-    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                modelpath,
-                dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",
-                device_map="auto",
-            )
+    model_kwargs = dict(
+        torch_dtype=torch.bfloat16,
+        attn_implementation=args.attn,
+    )
+    if args.device_map == "auto":
+        model_kwargs["device_map"] = "auto"
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(modelpath, **model_kwargs)
+    if args.device_map == "cuda":
+        model = model.cuda()
     min_pixels = 65536
     max_pixels = 262144
 
@@ -74,9 +80,11 @@ if __name__ == '__main__':
     processor.image_processor.size["longest_edge"]=max_pixels
     
 
-    namelist=os.listdir(imagepath)
+    namelist=sorted(os.listdir(imagepath))
 
     for name in namelist:
+        if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+            continue
         label_name=labeldata['mask'][int(name.split('.')[0])+1]['label']
         
         basicqu="Analyze the image of "+label_name+". Check whether the image contains only this single object and it is not background name such as sky, floor, and wall. If yes, output 1. If no, output 0. Do not output any explanation."
@@ -99,4 +107,3 @@ if __name__ == '__main__':
         ]
         basicoutput=generate_save(model,messages,savepath,name.split('.')[0])
         
-

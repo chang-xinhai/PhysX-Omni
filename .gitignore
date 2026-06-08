@@ -2,6 +2,7 @@
 pretrain/
 ours_demo*/
 outputs/
+.idea/
 
 
 # Byte-compiled / optimized / DLL files
@@ -210,6 +211,12 @@ cython_debug/
 # .vscode/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
+
+# applications_scene local dependencies/checkpoints/outputs
+applications_scene/Grounded-Segment-Anything/
+applications_scene/recognize-anything/
+applications_scene/Depth-Anything-3/
+applications_scene/outputs*/
 
 # Ruff stuff:
 .ruff_cache/
